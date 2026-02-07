@@ -1,9 +1,6 @@
 using Godot.NativeInterop;
 using System;
 using System.Collections.Generic;
-using System.Linq;
-using System.Text;
-using System.Threading.Tasks;
 
 namespace Godot.Bridge
 {
@@ -12,10 +9,9 @@ namespace Godot.Bridge
 
     public sealed class ScriptMethodRegistry<T> where T : GodotObject
     {
-        //internal Dictionary<(int argc, IntPtr methodName), ScriptMethod<T>> MethodsByNameAndArgc { get; } = new();
-        internal Dictionary<IntPtr, Dictionary<int, ScriptMethod<T>>> MethodsByNameAndArgc { get; } = new();
+        internal Dictionary<MethodKey, ScriptMethod<T>> MethodsByNameAndArgc { get; } = new();
 
-        internal Dictionary<(int argc, IntPtr methodName), IntPtr> Aliases { get; } = new();
+        internal Dictionary<MethodKey, IntPtr> Aliases { get; } = new();
 
         private readonly HashSet<IntPtr> _knownMethodNames = new();
 
@@ -27,19 +23,13 @@ namespace Godot.Bridge
 
         internal ScriptMethodRegistry<T> AddAlias(IntPtr methodName, int argumentCount, IntPtr alias)
         {
-            Aliases[(argumentCount, methodName)] = alias;
+            Aliases[new MethodKey(methodName, argumentCount)] = alias;
             return this;
         }
 
         internal ScriptMethodRegistry<T> Register(IntPtr methodName, int argumentCount, ScriptMethod<T> method)
         {
-            if (!MethodsByNameAndArgc.TryGetValue(methodName, out var dict))
-            {
-                dict = MethodsByNameAndArgc[methodName] = [];
-            }
-            dict[argumentCount] = method;
-            //MethodsByNameAndArgc[(argumentCount, methodName)] = method;
-            _knownMethodNames.Add(methodName);
+            MethodsByNameAndArgc[new MethodKey(methodName, argumentCount)] = method;
             return this;
         }
 
@@ -47,32 +37,14 @@ namespace Godot.Bridge
         {
             foreach (var (source, alias) in Aliases)
             {
-                if (MethodsByNameAndArgc.TryGetValue(source.methodName, out var scriptMethodLookup) &&
-                    scriptMethodLookup.TryGetValue(source.argc, out var scriptMethod))
+                if (MethodsByNameAndArgc.TryGetValue(source, out var scriptMethod))
                 {
-                    var shouldRegister = false;
-                    if (!MethodsByNameAndArgc.TryGetValue(alias, out var aliasScriptMethodLookup))
+                    // don't apply aliases when we have an actual method for the alias already
+                    if (!MethodsByNameAndArgc.ContainsKey(new MethodKey(alias, source.Argc)))
                     {
-                        shouldRegister = true;
-                    }
-                    else if (!aliasScriptMethodLookup.ContainsKey(source.argc))
-                    {
-                        shouldRegister = true;
-                    }
-
-                    if (shouldRegister)
-                    {
-                        Register(alias, source.argc, scriptMethod);
+                        Register(alias, source.Argc, scriptMethod);
                     }
                 }
-                //if (MethodsByNameAndArgc.TryGetValue(source, out var scriptMethod))
-                //{
-                //    // don't apply aliases when we have an actual method for the alias already
-                //    if (!MethodsByNameAndArgc.ContainsKey((source.argc, alias)))
-                //    {
-                //        Register(alias, source.argc, scriptMethod);
-                //    }
-                //}
             }
 
             GD.Print($"Script method registry compiled for {typeof(T)}: size={MethodsByNameAndArgc.Count}, alias_size={Aliases.Count}");
@@ -86,41 +58,25 @@ namespace Godot.Bridge
 
         public bool TryGetMethod(in godot_string_name name, int argumentCount, out ScriptMethod<T> method)
         {
-            //MethodsByNameAndArgc.TryGetValue((argumentCount, name._data), out method);
-            if (MethodsByNameAndArgc.TryGetValue(name._data, out var overloads))
-            {
-                if (overloads.TryGetValue(argumentCount, out method))
-                {
-                    return true;
-                }
-            }
-
-            method = default;
-            return false;
+            var key = new MethodKey(name._data, argumentCount);
+            return MethodsByNameAndArgc.TryGetValue(key, out method);
         }
     }
 
     public static class ScriptMethodRegistryExtensions
     {
         // This is an extension method because C# does not allow additional type constraints for an already existing T
-        public static ScriptMethodRegistry<T> Register<T, V>(this ScriptMethodRegistry<T> registry, ScriptMethodRegistry<V> baseTypeRegistry)
-            where T : V where V : GodotObject
+        public static ScriptMethodRegistry<T> Register<T, TV>(this ScriptMethodRegistry<T> registry, ScriptMethodRegistry<TV> baseTypeRegistry)
+            where T : TV where TV : GodotObject
         {
-            foreach (var ((argc, method), alias) in baseTypeRegistry.Aliases)
+            foreach (var (MethodKey, alias) in baseTypeRegistry.Aliases)
             {
-                registry.AddAlias(method, argc, alias);
+                registry.AddAlias(MethodKey.Name, MethodKey.Argc, alias);
             }
 
-            //foreach (var ((argc, method), value) in baseTypeRegistry.MethodsByNameAndArgc)
-            //{
-            //    registry.Register(method, argc, value);
-            //}
-            foreach (var (method, scriptLookupDict) in baseTypeRegistry.MethodsByNameAndArgc)
+            foreach (var (MethodKey, value) in baseTypeRegistry.MethodsByNameAndArgc)
             {
-                foreach (var entryKV in scriptLookupDict)
-                {
-                    registry.Register(method, entryKV.Key, entryKV.Value);
-                }
+                registry.Register(MethodKey.Name, MethodKey.Argc, value);
             }
 
             return registry;
