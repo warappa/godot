@@ -2472,7 +2472,7 @@ Error BindingsGenerator::_generate_cs_type(const TypeInterface &itype, const Str
 		if (is_derived_type && !itype.is_singleton) {
 			if (obj_types.has(itype.base_name)) {
 				TypeInterface base_type = obj_types[itype.base_name];
-
+		
 				output.append("\n");
 				output.append(INDENT2 ".Register(global::Godot.");
 				output.append(base_type.proxy_name);
@@ -2489,10 +2489,11 @@ Error BindingsGenerator::_generate_cs_type(const TypeInterface &itype, const Str
 		output.append("\n");
 
 		List<String> alreadyUsed;
-
+		
 		for (const MethodInterface &imethod : itype.methods) {
 			const String methodName = imethod.proxy_name + itos(imethod.arguments.size());
 			if (imethod.is_static ||
+				imethod.is_virtual ||
 				itype.is_singleton ||
 				itype.is_singleton_instance ||
 				alreadyUsed.find(methodName)) {
@@ -2500,7 +2501,7 @@ Error BindingsGenerator::_generate_cs_type(const TypeInterface &itype, const Str
 			}
 
 			alreadyUsed.push_back(methodName);
-
+		
 			output << INDENT2 ".Register("
 				   << "global::Godot." << itype.proxy_name + ".MethodName." + imethod.proxy_name
 				   << ", "
@@ -2518,9 +2519,8 @@ Error BindingsGenerator::_generate_cs_type(const TypeInterface &itype, const Str
 			output << CS_STATIC_FIELD_METHOD_PROXY_NAME_PREFIX << imethod.name << ", " << itos(imethod.arguments.size()) << ", MethodName." << imethod.proxy_name;
 			output << ")";
 		}
-		output.append("\n");
 		output.append(INDENT2 ".Compile();\n");
-
+		
 		alreadyUsed.clear();
 
 		output << INDENT1 << "public unsafe class FunctionPointerHelper\n";
@@ -2528,58 +2528,41 @@ Error BindingsGenerator::_generate_cs_type(const TypeInterface &itype, const Str
 		for (const MethodInterface &imethod : itype.methods) {
 			const String methodName = imethod.proxy_name + itos(imethod.arguments.size());
 			if (imethod.is_static ||
+				imethod.is_virtual ||
 				itype.is_singleton ||
 				itype.is_singleton_instance ||
 				alreadyUsed.find(methodName)) {
 				continue;
 			}
-
+		
 			alreadyUsed.push_back(methodName);
-
+		
 			output << INDENT2 "public static ScriptMethodPtr CreateScriptMethod_" << imethod.proxy_name << itos(imethod.arguments.size()) << "()\n"
 				   << INDENT2 << "{\n"
 				   << INDENT3 << "static void Impl(" << itype.proxy_name << " scriptInstance, NativeVariantPtrArgs args, out godot_variant ret)\n"
 				   << INDENT3 << "{\n"
 				;
-
+		
 			output << INDENT4;
-
+		
 			if (imethod.return_type.cname != name_cache.type_void)
 			{
 				output << "var callRet = ";
 			}
-
+		
 			output << "scriptInstance."
 				<< imethod.proxy_name
 				<< "(";
-
-			/*bool first_key = true;
-			for (const ArgumentInterface &iarg : imethod.arguments) {
-				const TypeInterface *arg_type = _get_type_or_null(iarg.type);
-
-				if (first_key) {
-					first_key = false;
-				} else {
-					output.append(", ");
-				}
-				if (!arg_type) {
-					output.append(iarg.type.cname);
-					continue;
-				}
-
-				String arg_cs_type = arg_type->cs_variant_to_managed;
-				output.append(arg_cs_type.replacen("params ", ""));
-			}*/
-
+		
 			int idx = 0;
 			for (const ArgumentInterface &iarg : imethod.arguments) {
 				const TypeInterface *arg_type = _get_type_or_null(iarg.type);
 				ERR_FAIL_NULL_V_MSG(arg_type, ERR_BUG, "Argument type '" + iarg.type.cname + "' was not found.");
-
+		
 				if (idx != 0) {
 					output << ", ";
 				}
-
+		
 				if (arg_type->cname == name_cache.type_Array_generic || arg_type->cname == name_cache.type_Dictionary_generic) {
 					String arg_cs_type = arg_type->cs_type + _get_generic_type_parameters(*arg_type, iarg.type.generic_type_parameters);
 					String toManaged = sformat(arg_type->cs_variant_to_managed, "args[" + itos(idx) + "]", arg_cs_type, arg_type->name)
@@ -2589,12 +2572,12 @@ Error BindingsGenerator::_generate_cs_type(const TypeInterface &itype, const Str
 					output << sformat(arg_type->cs_variant_to_managed, "args[" + itos(idx) + "]", arg_type->cs_type, arg_type->name)
 							.replacen("params ", "");
 				}
-
+		
 				idx++;
 			}
-
+		
 			output.append(");\n");
-
+		
 			if (imethod.return_type.cname != name_cache.type_void)
 			{
 				const TypeInterface *return_interface = _get_type_or_null(imethod.return_type);
@@ -2606,11 +2589,11 @@ Error BindingsGenerator::_generate_cs_type(const TypeInterface &itype, const Str
 			else {
 				output << INDENT4 << "ret = default;\n";
 			}
-
+		
 			output << INDENT3 << "}\n"
 				   << INDENT3 << "return ScriptMethodPtr.Create<" << itype.cs_type << ">(&Impl);\n"
 				   << INDENT2 << "}\n";
-
+		
 		}
 		output.append(INDENT1);
 		output.append("}\n");

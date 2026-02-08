@@ -76,19 +76,21 @@ namespace Godot.Bridge
 
         public ScriptMethodRegistry<T> Compile()
         {
-            foreach (var (source, alias) in Aliases)
+            int aliasesRegistered = 0;
+            foreach (var (methodKey, alias) in Aliases)
             {
-                if (MethodsByNameAndArgc.TryGetValue(source, out var scriptMethod))
+                if (MethodsByNameAndArgc.TryGetValue(methodKey, out var scriptMethod))
                 {
                     // don't apply aliases when we have an actual method for the alias already
-                    if (!MethodsByNameAndArgc.ContainsKey(new MethodKey(alias, source.Argc)))
+                    if (!MethodsByNameAndArgc.ContainsKey(new MethodKey(alias, methodKey.Argc)))
                     {
-                        Register(alias, source.Argc, scriptMethod);
+                        Register(alias, methodKey.Argc, scriptMethod);
+                        aliasesRegistered++;
                     }
                 }
             }
 
-            GD.Print($"Script method registry compiled for {typeof(T)}: size={MethodsByNameAndArgc.Count}, alias_size={Aliases.Count}");
+            GD.Print($"Script method registry compiled for {typeof(T)}: size={MethodsByNameAndArgc.Count}, alias_size={Aliases.Count}, aliasesRegistered={aliasesRegistered}");
             // TODO: I would like to discard _aliases now to free up memory, but the hierarchy above it still needs it
             //       There are probably lots of aliases, we could at least not copy them and recursively walk our parent
             //       hierarchy as it's only done once (here). Ideas are appreciated

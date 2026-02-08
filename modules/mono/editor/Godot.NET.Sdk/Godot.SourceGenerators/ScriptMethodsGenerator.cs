@@ -203,13 +203,17 @@ namespace Godot.SourceGenerators
             }
 
             // TODO: why where static methods in here? does excluding them here break stuff? c++ codegen filters by is_virtual and static methods can't be virtual in C#
-            var godotClassNonStaticMethods = godotClassMethods.Where(m => !m.Method.IsStatic).ToArray();
+            var godotClassNonStaticMethods = godotClassMethods
+                .Where(m =>
+                    !m.Method.IsStatic)
+                .ToArray();
+
             if (godotClassNonStaticMethods.Length > 0)
             {
                 source.Append("    public new static readonly ScriptMethodRegistry<").Append(symbol.ToDisplayString(SymbolDisplayFormat.MinimallyQualifiedFormat))
                     .Append("> MethodRegistry = ")
                     .Append("new ScriptMethodRegistry<").Append(symbol.ToDisplayString(SymbolDisplayFormat.MinimallyQualifiedFormat)).Append(">()");
-                source.Append("\n        .Register(").Append(symbol.BaseType.FullQualifiedNameIncludeGlobal()).Append(".MethodRegistry)");
+                    source.Append("\n        .Register(").Append(symbol.BaseType.FullQualifiedNameIncludeGlobal()).Append(".MethodRegistry)");
 
                 foreach (var method in godotClassNonStaticMethods)
                 {
