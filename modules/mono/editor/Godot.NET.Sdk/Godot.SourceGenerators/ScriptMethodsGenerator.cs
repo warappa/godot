@@ -218,13 +218,22 @@ namespace Godot.SourceGenerators
 
                 source.Append("\n        .Compile();\n\n");
 
+                source.Append("    public unsafe class FunctionPointerHelper\n");
+                source.Append("    {\n");
+                foreach (var method in godotClassNonStaticMethods)
+                {
+                    GenerateScriptMethodFunctionPointerHelperMethod(symbol.ToDisplayString(SymbolDisplayFormat.MinimallyQualifiedFormat), method, source);
+                }
+                source.Append("    }");
+
+
                 source.Append("    /// <inheritdoc/>\n");
                 source.Append("    [global::System.ComponentModel.EditorBrowsable(global::System.ComponentModel.EditorBrowsableState.Never)]\n");
-                source.Append("    protected override bool InvokeGodotClassMethod(in godot_string_name method, ");
+                source.Append("    unsafe protected override bool InvokeGodotClassMethod(in godot_string_name method, ");
                 source.Append("NativeVariantPtrArgs args, out godot_variant ret)\n    {\n");
-                source.Append("        if (MethodRegistry.TryGetMethod(in method, args.Count, out var scriptMethod))\n");
+                source.Append("        if (MethodRegistry.TryGetMethod(in method, args.Count, out var scriptMethodPtr))\n");
                 source.Append("        {\n");
-                source.Append("            scriptMethod(this, args, out ret);\n");
+                source.Append($"            scriptMethodPtr.Ptr(this, args, out ret);\n");
                 source.Append("            return true;\n");
                 source.Append("        }\n\n");
                 source.Append("        ret = new godot_variant();\n");
@@ -517,13 +526,66 @@ namespace Godot.SourceGenerators
                 .Append(", ")
                 .Append(method.ParamTypes.Length)
                 .Append(", ")
-                .Append($"({type} scriptInstance, NativeVariantPtrArgs args, out godot_variant ret) => \n")
-                .Append("        {\n");
+                //.Append($"new ScriptMethodPtr(({type} scriptInstance, NativeVariantPtrArgs args, out godot_variant ret) => \n")
+                .Append($"FunctionPointerHelper.CreateScriptMethod_{methodName}{method.ParamTypeSymbols.Length}())\n");
+
+            //if (method.RetType != null)
+            //    source.Append("            var callRet = ");
+            //else
+            //    source.Append("            ");
+
+            //source.Append("scriptInstance.").Append(methodName);
+            //source.Append("(");
+
+            //for (int i = 0; i < method.ParamTypes.Length; i++)
+            //{
+            //    if (i != 0)
+            //        source.Append(", ");
+
+            //    source.AppendNativeVariantToManagedExpr(string.Concat("args[", i.ToString(), "]"),
+            //        method.ParamTypeSymbols[i], method.ParamTypes[i]);
+            //}
+
+            //source.Append(");\n");
+
+            //if (method.RetType != null)
+            //{
+            //    source.Append("            ret = ");
+
+            //    source.AppendManagedToNativeVariantExpr("callRet",
+            //        method.RetType.Value.TypeSymbol, method.RetType.Value.MarshalType);
+            //    source.Append(";\n");
+            //}
+            //else
+            //{
+            //    source.Append("            ret = default;\n");
+            //}
+
+            //source.Append("        }))");
+
+        }
+
+        private static void GenerateScriptMethodFunctionPointerHelperMethod(
+            string type,
+            GodotMethodData method,
+            StringBuilder source
+        )
+        {
+            string methodName = method.Method.Name;
+
+            source.Append(
+                $$"""
+                        public static ScriptMethodPtr CreateScriptMethod_{{methodName}}{{method.ParamTypeSymbols.Length}}()
+                        {   
+                            static void Impl({{type}} scriptInstance, NativeVariantPtrArgs args, out godot_variant ret)
+                            {
+                """);
+                
 
             if (method.RetType != null)
-                source.Append("            var callRet = ");
+                source.Append("                var callRet = ");
             else
-                source.Append("            ");
+                source.Append("                ");
 
             source.Append("scriptInstance.").Append(methodName);
             source.Append("(");
@@ -541,7 +603,7 @@ namespace Godot.SourceGenerators
 
             if (method.RetType != null)
             {
-                source.Append("            ret = ");
+                source.Append("                ret = ");
 
                 source.AppendManagedToNativeVariantExpr("callRet",
                     method.RetType.Value.TypeSymbol, method.RetType.Value.MarshalType);
@@ -549,10 +611,18 @@ namespace Godot.SourceGenerators
             }
             else
             {
-                source.Append("            ret = default;\n");
+                source.Append("                ret = default;\n");
             }
 
-            source.Append("        })");
+            source.Append(
+                $$"""
+                            }
+                
+                            // Wrap static method into ScriptMethodPtr
+                            return ScriptMethodPtr.Create<{{type}}>(&Impl);
+                        }
+
+                """);
 
         }
     }

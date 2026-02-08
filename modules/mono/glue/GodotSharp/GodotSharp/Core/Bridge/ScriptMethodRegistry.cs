@@ -1,24 +1,64 @@
 using Godot.NativeInterop;
 using System;
 using System.Collections.Generic;
+using System.Runtime.InteropServices;
 
 namespace Godot.Bridge
 {
-    public delegate void ScriptMethod<in T>(T scriptInstance, NativeVariantPtrArgs args, out godot_variant ret)
-        where T : GodotObject;
+    //public delegate void ScriptMethod<in T>(T scriptInstance, NativeVariantPtrArgs args, out godot_variant ret)
+    //    where T : GodotObject;
 
-    public sealed class ScriptMethodRegistry<T> where T : GodotObject
+    public unsafe readonly struct ScriptMethodPtr
     {
-        internal Dictionary<MethodKey, ScriptMethod<T>> MethodsByNameAndArgc { get; } = new();
+        public readonly delegate* managed<GodotObject, NativeVariantPtrArgs, out godot_variant, void> Ptr;
+
+        public ScriptMethodPtr(delegate* managed<GodotObject, NativeVariantPtrArgs, out godot_variant, void> ptr)
+        {
+            Ptr = ptr;
+        }
+
+        //public void Invoke(GodotObject instance, NativeVariantPtrArgs args, out godot_variant ret)
+        //{
+        //    Ptr(instance, args, out ret);
+        //}
+
+        public static ScriptMethodPtr Create<TV>(delegate* managed<TV, NativeVariantPtrArgs, out godot_variant, void> ptr)
+            where TV : GodotObject
+        {
+            // Type erasure: TV -> GodotObject
+            delegate* managed<GodotObject, NativeVariantPtrArgs, out godot_variant, void> erasedPtr =
+                (delegate* managed<GodotObject, NativeVariantPtrArgs, out godot_variant, void>)(void*)ptr;
+
+            return new ScriptMethodPtr(erasedPtr);
+        }
+    }
+
+    public unsafe sealed class ScriptMethodRegistry<T>
+        where T : GodotObject
+    {
+        internal Dictionary<MethodKey, ScriptMethodPtr> MethodsByNameAndArgc = new();
 
         internal Dictionary<MethodKey, IntPtr> Aliases { get; } = new();
 
         private readonly HashSet<IntPtr> _knownMethodNames = new();
-
+        //public new static readonly ScriptMethodRegistry<T> MethodRegistry = new ScriptMethodRegistry<T>()
+        //    .Register(new StringName(), 0, BuildInfoInvoker.CreateScriptMethod_GetHashCode())
+        //    //new Func<ScriptMethodPtr>(
+        //    //    () =>
+        //    //    {
+        //    //        var action = (T scriptInstance, NativeVariantPtrArgs args, out godot_variant ret) =>
+        //    //        {
+        //    //            var callRet = scriptInstance.GetHashCode();
+        //    //            ret = global::Godot.NativeInterop.VariantUtils.CreateFrom<int>(callRet);
+        //    //        };
+        //    //        return ScriptMethodPtr.Create<T>(&action);
+        //    //    }
+        //    //)())
+        //    .Compile();
         public ScriptMethodRegistry<T> AddAlias(StringName methodName, int argumentCount, StringName alias) =>
             AddAlias(methodName.NativeValue._data, argumentCount, alias.NativeValue._data);
 
-        public ScriptMethodRegistry<T> Register(StringName methodName, int argumentCount, ScriptMethod<T> method) =>
+        public ScriptMethodRegistry<T> Register(StringName methodName, int argumentCount, ScriptMethodPtr method) =>
             Register(methodName.NativeValue._data, argumentCount, method);
 
         internal ScriptMethodRegistry<T> AddAlias(IntPtr methodName, int argumentCount, IntPtr alias)
@@ -27,9 +67,10 @@ namespace Godot.Bridge
             return this;
         }
 
-        internal ScriptMethodRegistry<T> Register(IntPtr methodName, int argumentCount, ScriptMethod<T> method)
+        internal ScriptMethodRegistry<T> Register(IntPtr methodName, int argumentCount, ScriptMethodPtr method)
         {
             MethodsByNameAndArgc[new MethodKey(methodName, argumentCount)] = method;
+            _knownMethodNames.Add(methodName);
             return this;
         }
 
@@ -56,7 +97,7 @@ namespace Godot.Bridge
 
         public bool ContainsMethod(in godot_string_name name) => _knownMethodNames.Contains(name._data);
 
-        public bool TryGetMethod(in godot_string_name name, int argumentCount, out ScriptMethod<T> method)
+        public bool TryGetMethod(in godot_string_name name, int argumentCount, out ScriptMethodPtr method)
         {
             var key = new MethodKey(name._data, argumentCount);
             return MethodsByNameAndArgc.TryGetValue(key, out method);
@@ -67,7 +108,8 @@ namespace Godot.Bridge
     {
         // This is an extension method because C# does not allow additional type constraints for an already existing T
         public static ScriptMethodRegistry<T> Register<T, TV>(this ScriptMethodRegistry<T> registry, ScriptMethodRegistry<TV> baseTypeRegistry)
-            where T : TV where TV : GodotObject
+            where T : TV
+            where TV : GodotObject
         {
             foreach (var (MethodKey, alias) in baseTypeRegistry.Aliases)
             {

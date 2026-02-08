@@ -4,10 +4,10 @@ namespace Godot.Bridge
 {
     internal readonly struct MethodKey : IEquatable<MethodKey>
     {
-        public readonly nint Name;
+        public readonly IntPtr Name;
         public readonly int Argc;
 
-        public MethodKey(nint name, int argc)
+        public MethodKey(IntPtr name, int argc)
         {
             Name = name;
             Argc = argc;
