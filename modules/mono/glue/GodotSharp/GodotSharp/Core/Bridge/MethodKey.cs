@@ -15,7 +15,7 @@ namespace Godot.Bridge
             Name = name;
             Argc = argc;
 
-            _hashCode = HashCode.Combine(name, argc); //unchecked(Name.GetHashCode() * 17) + Argc;
+            _hashCode = HashCode.Combine(name, argc);
         }
 
         [MethodImpl(MethodImplOptions.AggressiveInlining)]

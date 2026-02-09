@@ -2628,78 +2628,6 @@ Error BindingsGenerator::_generate_cs_type(const TypeInterface &itype, const Str
 		output << INDENT2 "ret = new godot_variant();\n"
 			   << INDENT2 "return false;\n";
 
-		//for (const MethodInterface &imethod : itype.methods) {
-		//	if (!imethod.is_virtual) {
-		//		continue;
-		//	}
-
-		//	// We also call HasGodotClassMethod to ensure the method is overridden and avoid calling
-		//	// the stub implementation. This solution adds some extra overhead to calls, but it's
-		//	// much simpler than other solutions. This won't be a problem once we move to function
-		//	// pointers of generated wrappers for each method, as lookup will only happen once.
-
-		//	// We check both native names (snake_case) and proxy names (PascalCase)
-		//	output << INDENT2 "if ((method == " << CS_STATIC_FIELD_METHOD_PROXY_NAME_PREFIX << imethod.name
-		//		   << " || method == MethodName." << imethod.proxy_name
-		//		   << ") && args.Count == " << itos(imethod.arguments.size())
-		//		   << " && " << CS_METHOD_HAS_GODOT_CLASS_METHOD << "((godot_string_name)"
-		//		   << CS_STATIC_FIELD_METHOD_PROXY_NAME_PREFIX << imethod.name << ".NativeValue))\n"
-		//		   << INDENT2 "{\n";
-
-		//	if (imethod.return_type.cname != name_cache.type_void) {
-		//		output << INDENT3 "var callRet = ";
-		//	} else {
-		//		output << INDENT3;
-		//	}
-
-		//	output << imethod.proxy_name << "(";
-
-		//	int i = 0;
-		//	for (List<BindingsGenerator::ArgumentInterface>::ConstIterator itr = imethod.arguments.begin(); itr != imethod.arguments.end(); ++itr, ++i) {
-		//		const ArgumentInterface &iarg = *itr;
-
-		//		const TypeInterface *arg_type = _get_type_or_null(iarg.type);
-		//		ERR_FAIL_NULL_V_MSG(arg_type, ERR_BUG, "Argument type '" + iarg.type.cname + "' was not found.");
-
-		//		if (i != 0) {
-		//			output << ", ";
-		//		}
-
-		//		if (arg_type->cname == name_cache.type_Array_generic || arg_type->cname == name_cache.type_Dictionary_generic) {
-		//			String arg_cs_type = arg_type->cs_type + _get_generic_type_parameters(*arg_type, iarg.type.generic_type_parameters);
-
-		//			output << "new " << arg_cs_type << "(" << sformat(arg_type->cs_variant_to_managed, "args[" + itos(i) + "]", arg_type->cs_type, arg_type->name) << ")";
-		//		} else {
-		//			output << sformat(arg_type->cs_variant_to_managed,
-		//					"args[" + itos(i) + "]", arg_type->cs_type, arg_type->name);
-		//		}
-		//	}
-
-		//	output << ");\n";
-
-		//	if (imethod.return_type.cname != name_cache.type_void) {
-		//		const TypeInterface *return_type = _get_type_or_null(imethod.return_type);
-		//		ERR_FAIL_NULL_V_MSG(return_type, ERR_BUG, "Return type '" + imethod.return_type.cname + "' was not found.");
-
-		//		output << INDENT3 "ret = "
-		//			   << sformat(return_type->cs_managed_to_variant, "callRet", return_type->cs_type, return_type->name)
-		//			   << ";\n"
-		//			   << INDENT3 "return true;\n";
-		//	} else {
-		//		output << INDENT3 "ret = default;\n"
-		//			   << INDENT3 "return true;\n";
-		//	}
-
-		//	output << INDENT2 "}\n";
-		//}
-
-		//if (is_derived_type) {
-		//	output << INDENT2 "return base." CS_METHOD_INVOKE_GODOT_CLASS_METHOD "(method, args, out ret);\n";
-		//} else {
-		//	output << INDENT2 "ret = default;\n"
-		//		   << INDENT2 "return false;\n";
-		//}
-
 		output << INDENT1 "}\n";
 
 		output << "#pragma warning restore CS0618\n";
@@ -2718,30 +2646,6 @@ Error BindingsGenerator::_generate_cs_type(const TypeInterface &itype, const Str
 			   << INDENT1 "{\n";
 
 		output << INDENT2 "return MethodRegistry.ContainsMethod(method);\n";
-
-		//for (const MethodInterface &imethod : itype.methods) {
-		//	if (!imethod.is_virtual) {
-		//		continue;
-		//	}
-
-		//	// We check for native names (snake_case). If we detect one, we call HasGodotClassMethod
-		//	// again, but this time with the respective proxy name (PascalCase). It's the job of
-		//	// user derived classes to override the method and check for those. Our C# source
-		//	// generators take care of generating those override methods.
-		//	output << INDENT2 "if (method == MethodName." << imethod.proxy_name
-		//		   << ")\n" INDENT2 "{\n"
-		//		   << INDENT3 "if (" CS_METHOD_HAS_GODOT_CLASS_METHOD "("
-		//		   << CS_STATIC_FIELD_METHOD_PROXY_NAME_PREFIX << imethod.name
-		//		   << ".NativeValue.DangerousSelfRef))\n" INDENT3 "{\n"
-		//		   << INDENT4 "return true;\n"
-		//		   << INDENT3 "}\n" INDENT2 "}\n";
-		//}
-
-		//if (is_derived_type) {
-		//	output << INDENT2 "return base." CS_METHOD_HAS_GODOT_CLASS_METHOD "(method);\n";
-		//} else {
-		//	output << INDENT2 "return false;\n";
-		//}
 
 		output << INDENT1 "}\n";
 

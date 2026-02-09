@@ -297,13 +297,6 @@ namespace Godot.SourceGenerators
                 source.Append("    [global::System.ComponentModel.EditorBrowsable(global::System.ComponentModel.EditorBrowsableState.Never)]\n");
                 source.Append("    protected override bool HasGodotClassMethod(in godot_string_name method)\n    {\n");
 
-                //foreach (string methodName in distinctMethodNames)
-                //{
-                //    GenerateHasMethodEntry(methodName, source);
-                //}
-
-                //source.Append("        return base.HasGodotClassMethod(method);\n");
-
                 source.Append("        return MethodRegistry.ContainsMethod(method);\n");
 
                 source.Append("    }\n");
@@ -530,43 +523,7 @@ namespace Godot.SourceGenerators
                 .Append(", ")
                 .Append(method.ParamTypes.Length)
                 .Append(", ")
-                //.Append($"new ScriptMethodPtr(({type} scriptInstance, NativeVariantPtrArgs args, out godot_variant ret) => \n")
                 .Append($"FunctionPointerHelper.CreateScriptMethod_{methodName}{method.ParamTypeSymbols.Length}())\n");
-
-            //if (method.RetType != null)
-            //    source.Append("            var callRet = ");
-            //else
-            //    source.Append("            ");
-
-            //source.Append("scriptInstance.").Append(methodName);
-            //source.Append("(");
-
-            //for (int i = 0; i < method.ParamTypes.Length; i++)
-            //{
-            //    if (i != 0)
-            //        source.Append(", ");
-
-            //    source.AppendNativeVariantToManagedExpr(string.Concat("args[", i.ToString(), "]"),
-            //        method.ParamTypeSymbols[i], method.ParamTypes[i]);
-            //}
-
-            //source.Append(");\n");
-
-            //if (method.RetType != null)
-            //{
-            //    source.Append("            ret = ");
-
-            //    source.AppendManagedToNativeVariantExpr("callRet",
-            //        method.RetType.Value.TypeSymbol, method.RetType.Value.MarshalType);
-            //    source.Append(";\n");
-            //}
-            //else
-            //{
-            //    source.Append("            ret = default;\n");
-            //}
-
-            //source.Append("        }))");
-
         }
 
         private static void GenerateScriptMethodFunctionPointerHelperMethod(
