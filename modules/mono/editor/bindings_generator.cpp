@@ -2166,6 +2166,7 @@ Error BindingsGenerator::_generate_cs_type(const TypeInterface &itype, const Str
 	output.append("using System.Diagnostics;\n"); // DebuggerBrowsable
 	output.append("using Godot.NativeInterop;\n");
 	output.append("using Godot.Bridge;\n");
+	output.append("using System.Runtime.CompilerServices;\n");
 
 	output.append("\n#nullable disable\n");
 
@@ -2619,7 +2620,14 @@ Error BindingsGenerator::_generate_cs_type(const TypeInterface &itype, const Str
 			   << "NativeVariantPtrArgs args, out godot_variant ret)\n"
 			   << INDENT1 "{\n";
 
-		output << INDENT2 << "if (MethodRegistry.TryGetMethod(in method, args.Count, out var scriptMethodPtr))\n"
+		//output << INDENT2 << "if (MethodRegistry.TryGetMethod(in method, args.Count, out var scriptMethodPtr))\n"
+		//	   << INDENT2 << "{\n"
+		//	   << INDENT3 << "scriptMethodPtr.Ptr(this, args, out ret);\n"
+		//	   << INDENT3 << "return true;\n"
+		//	   << INDENT2 << "}\n\n";
+
+		output << INDENT2 << "ref readonly var scriptMethodPtr = ref MethodRegistry.TryGetMethodFast(in method, args.Count);\n"
+			   << INDENT2 << "if (!Unsafe.IsNullRef(in scriptMethodPtr))\n"
 			   << INDENT2 << "{\n"
 			   << INDENT3 << "scriptMethodPtr.Ptr(this, args, out ret);\n"
 			   << INDENT3 << "return true;\n"

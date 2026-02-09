@@ -91,6 +91,7 @@ namespace Godot.SourceGenerators
             source.Append("using Godot;\n");
             source.Append("using Godot.NativeInterop;\n");
             source.Append("using Godot.Bridge;\n");
+            source.Append("using System.Runtime.CompilerServices;\n");
             source.Append("\n");
 
             if (hasNamespace)
@@ -235,9 +236,15 @@ namespace Godot.SourceGenerators
                 source.Append("    [global::System.ComponentModel.EditorBrowsable(global::System.ComponentModel.EditorBrowsableState.Never)]\n");
                 source.Append("    unsafe protected override bool InvokeGodotClassMethod(in godot_string_name method, ");
                 source.Append("NativeVariantPtrArgs args, out godot_variant ret)\n    {\n");
-                source.Append("        if (MethodRegistry.TryGetMethod(in method, args.Count, out var scriptMethodPtr))\n");
+                //source.Append("        if (MethodRegistry.TryGetMethod(in method, args.Count, out var scriptMethodPtr))\n");
+                //source.Append("        {\n");
+                //source.Append($"            scriptMethodPtr.Ptr(this, args, out ret);\n");
+                //source.Append("            return true;\n");
+                //source.Append("        }\n\n");
+                source.Append("        ref readonly var scriptMethodPtr = ref MethodRegistry.TryGetMethodFast(in method, args.Count);\n");
+                source.Append("        if (!Unsafe.IsNullRef(in scriptMethodPtr))\n");
                 source.Append("        {\n");
-                source.Append($"            scriptMethodPtr.Ptr(this, args, out ret);\n");
+                source.Append($"           scriptMethodPtr.Ptr(this, args, out ret);\n");
                 source.Append("            return true;\n");
                 source.Append("        }\n\n");
                 source.Append("        ret = new godot_variant();\n");
