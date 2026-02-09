@@ -1,4 +1,5 @@
 using System;
+using System.Diagnostics.CodeAnalysis;
 using System.Runtime.CompilerServices;
 
 namespace Godot.NativeInterop;
@@ -17,11 +18,22 @@ public partial class VariantUtils
         internal delegate godot_variant ToVariantConverter(scoped in T from);
         internal delegate T FromVariantConverter(in godot_variant from);
 
+        [MethodImpl(MethodImplOptions.AggressiveInlining)]
         public static unsafe godot_variant ToVariant(scoped in T from) =>
-             ToVariantCb != null ? ToVariantCb(from) : throw UnsupportedType<T>();
+             ToVariantCb != null ? ToVariantCb(from) : ThrowUnsupportedType();
 
-        public static unsafe T FromVariant(in godot_variant variant) =>
-            FromVariantCb != null ? FromVariantCb(variant) : throw UnsupportedType<T>();
+        [MethodImpl(MethodImplOptions.AggressiveInlining)]
+        public static unsafe T FromVariant(in godot_variant variant)
+        {
+            if (FromVariantCb != null)
+            {
+                return FromVariantCb(variant);
+            }
+
+            ThrowUnsupportedType();
+
+            return default;
+        }
 
         internal static ToVariantConverter? ToVariantCb;
 
@@ -30,6 +42,12 @@ public partial class VariantUtils
         static GenericConversion()
         {
             RuntimeHelpers.RunClassConstructor(typeof(T).TypeHandle);
+        }
+
+        [DoesNotReturn]
+        private static unsafe godot_variant ThrowUnsupportedType()
+        {
+            throw UnsupportedType<T>();
         }
     }
 
@@ -257,7 +275,7 @@ public partial class VariantUtils
             if (enumType == typeof(ulong))
                 return (scoped in T from) => CreateFromInt(UnsafeAs<ulong>(from));
 
-            throw UnsupportedType<T>();
+            ThrowUnsupportedType<T>();
         }
 
         return (scoped in T from) => GenericConversion<T>.ToVariant(from);
@@ -458,9 +476,15 @@ public partial class VariantUtils
             if (enumType == typeof(ulong))
                 return (in godot_variant variant) => UnsafeAsT(ConvertToUInt64(variant));
 
-            throw UnsupportedType<T>();
+            ThrowUnsupportedType<T>();
         }
 
         return (in godot_variant variant) => GenericConversion<T>.FromVariant(variant);
+    }
+
+    [DoesNotReturn]
+    private static unsafe godot_variant ThrowUnsupportedType<T>()
+    {
+        throw UnsupportedType<T>();
     }
 }

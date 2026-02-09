@@ -1,13 +1,11 @@
 using Godot.NativeInterop;
 using System;
+using System.Collections.Frozen;
 using System.Collections.Generic;
 using System.Runtime.InteropServices;
 
 namespace Godot.Bridge
 {
-    //public delegate void ScriptMethod<in T>(T scriptInstance, NativeVariantPtrArgs args, out godot_variant ret)
-    //    where T : GodotObject;
-
     public unsafe readonly struct ScriptMethodPtr
     {
         public readonly delegate* managed<GodotObject, NativeVariantPtrArgs, out godot_variant, void> Ptr;
@@ -16,11 +14,6 @@ namespace Godot.Bridge
         {
             Ptr = ptr;
         }
-
-        //public void Invoke(GodotObject instance, NativeVariantPtrArgs args, out godot_variant ret)
-        //{
-        //    Ptr(instance, args, out ret);
-        //}
 
         public static ScriptMethodPtr Create<TV>(delegate* managed<TV, NativeVariantPtrArgs, out godot_variant, void> ptr)
             where TV : GodotObject
@@ -36,25 +29,13 @@ namespace Godot.Bridge
     public unsafe sealed class ScriptMethodRegistry<T>
         where T : GodotObject
     {
-        internal Dictionary<MethodKey, ScriptMethodPtr> MethodsByNameAndArgc = new();
+        internal Dictionary<MethodKey, ScriptMethodPtr> BuilderMethodsByNameAndArgc = new();
+        internal FrozenDictionary<MethodKey, ScriptMethodPtr> MethodsByNameAndArgc;
 
         internal Dictionary<MethodKey, IntPtr> Aliases { get; } = new();
 
         private readonly HashSet<IntPtr> _knownMethodNames = new();
-        //public new static readonly ScriptMethodRegistry<T> MethodRegistry = new ScriptMethodRegistry<T>()
-        //    .Register(new StringName(), 0, BuildInfoInvoker.CreateScriptMethod_GetHashCode())
-        //    //new Func<ScriptMethodPtr>(
-        //    //    () =>
-        //    //    {
-        //    //        var action = (T scriptInstance, NativeVariantPtrArgs args, out godot_variant ret) =>
-        //    //        {
-        //    //            var callRet = scriptInstance.GetHashCode();
-        //    //            ret = global::Godot.NativeInterop.VariantUtils.CreateFrom<int>(callRet);
-        //    //        };
-        //    //        return ScriptMethodPtr.Create<T>(&action);
-        //    //    }
-        //    //)())
-        //    .Compile();
+
         public ScriptMethodRegistry<T> AddAlias(StringName methodName, int argumentCount, StringName alias) =>
             AddAlias(methodName.NativeValue._data, argumentCount, alias.NativeValue._data);
 
@@ -69,7 +50,7 @@ namespace Godot.Bridge
 
         internal ScriptMethodRegistry<T> Register(IntPtr methodName, int argumentCount, ScriptMethodPtr method)
         {
-            MethodsByNameAndArgc[new MethodKey(methodName, argumentCount)] = method;
+            BuilderMethodsByNameAndArgc[new MethodKey(methodName, argumentCount)] = method;
             _knownMethodNames.Add(methodName);
             return this;
         }
@@ -79,16 +60,18 @@ namespace Godot.Bridge
             int aliasesRegistered = 0;
             foreach (var (methodKey, alias) in Aliases)
             {
-                if (MethodsByNameAndArgc.TryGetValue(methodKey, out var scriptMethod))
+                if (BuilderMethodsByNameAndArgc.TryGetValue(methodKey, out var scriptMethod))
                 {
                     // don't apply aliases when we have an actual method for the alias already
-                    if (!MethodsByNameAndArgc.ContainsKey(new MethodKey(alias, methodKey.Argc)))
+                    if (!BuilderMethodsByNameAndArgc.ContainsKey(new MethodKey(alias, methodKey.Argc)))
                     {
                         Register(alias, methodKey.Argc, scriptMethod);
                         aliasesRegistered++;
                     }
                 }
             }
+
+            MethodsByNameAndArgc = BuilderMethodsByNameAndArgc.ToFrozenDictionary();
 
             GD.Print($"Script method registry compiled for {typeof(T)}: size={MethodsByNameAndArgc.Count}, alias_size={Aliases.Count}, aliasesRegistered={aliasesRegistered}");
             // TODO: I would like to discard _aliases now to free up memory, but the hierarchy above it still needs it
