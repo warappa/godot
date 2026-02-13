@@ -1,54 +1,10 @@
 using System;
-using System.Collections.Concurrent;
-using System.Collections.Generic;
-using System.Linq;
 using System.Runtime.CompilerServices;
 using System.Runtime.InteropServices;
-using System.Text;
 using System.Threading;
-using System.Threading.Tasks;
 
 namespace Godot
 {
-    public partial class GodotObject
-    {
-        //private IntPtr _registryHandle = (IntPtr)(-1);
-
-        // Im Konstruktor registrieren
-        internal void InitializeRegistry()
-        {
-            //GodotObjectRegistry.Register(NativePtr, this);
-        }
-
-        //// Das ist der zentrale Einstiegspunkt für das Löschen
-        //public void Dispose()
-        //{
-        //    Dispose(true);
-        //    GC.SuppressFinalize(this);
-        //}
-
-        protected virtual void DisposeScriptIntegration(bool disposing)
-        {
-            if (NativePtr != IntPtr.Zero)
-            {
-                // Wir geben den Slot in der Registry frei
-                //GodotObjectRegistry.Unregister(NativePtr);
-                //_registryHandle = (IntPtr)(-1);
-            }
-
-            if (disposing)
-            {
-                // Native Ressourcen freigeben
-            }
-        }
-
-        //~GodotObject()
-        //{
-        //    // Falls der Nutzer vergessen hat Dispose zu rufen
-        //    Dispose(false);
-        //}
-    }
-
     //internal static class GodotObjectRegistry
     //{
     //    // Wir nutzen ein flaches Array für maximale Read-Performance (Lock-Free)
@@ -121,13 +77,13 @@ namespace Godot
     public static class GodotObjectRegistry
     {
         [StructLayout(LayoutKind.Sequential, Pack = 8)]
-        private struct Entry
+        public struct Entry
         {
             public IntPtr Key;          // Native Pointer (Godot)
-            public GodotObject? Value;  // Direkte starke Referenz für Speed
+            public GodotObject? Value;  // Managed Instanz
         }
 
-        private sealed class Table
+        public sealed class Table
         {
             public readonly Entry[] Entries;
             public readonly int Mask;
@@ -135,8 +91,12 @@ namespace Godot
 
             public Table(int size)
             {
-                Entries = new Entry[size];
-                Mask = size - 1;
+                // Sicherstellen, dass size eine Potenz von 2 ist
+                int validatedSize = 1;
+                while (validatedSize < size) validatedSize <<= 1;
+
+                Entries = new Entry[validatedSize];
+                Mask = validatedSize - 1;
                 Count = 0;
             }
         }
@@ -158,6 +118,39 @@ namespace Godot
         private static RegistryState _state = new RegistryState(4096);
 
         /// <summary>
+        /// Reserviert vorab Speicher, um Resizes im Spielverlauf zu verhindern.
+        /// </summary>
+        public static void Warmup(int capacity)
+        {
+            lock (_state.WriteLock)
+            {
+                if (_state.CurrentTable.Entries.Length < capacity)
+                {
+                    Resize(capacity * 2); // Kapazität mal 2 für Load Factor 0.5
+                }
+            }
+        }
+
+        public static Table GetTable() => _state.CurrentTable;
+
+        public static Entry[] GetEntries()
+        {
+            var table = _state.CurrentTable;
+            int mask = table.Mask;
+            var entries = table.Entries;
+
+            return entries;
+        }
+
+        public static int GetMask()
+        {
+            var table = _state.CurrentTable;
+            int mask = table.Mask;
+
+            return mask;
+        }
+
+        /// <summary>
         /// Holt das Objekt. Zeitkomplexität: Fast immer O(1). 
         /// Keine Locks, keine GCHandles, kein Overhead.
         /// </summary>
@@ -166,15 +159,14 @@ namespace Godot
         {
             if (nativePtr == IntPtr.Zero) return null;
 
-            // Atomarer Snapshot der Tabelle für Lock-free Reads
             var table = _state.CurrentTable;
             int mask = table.Mask;
             var entries = table.Entries;
 
-            // Fibonacci Hash für optimale Pointer-Verteilung
+            // Fibonacci Hashing
             int slot = (int)(((ulong)nativePtr.ToInt64() * 11400714819323198485uL) >> 32) & mask;
 
-            for (int i = 0; i < 32; i++) // Kurzes Linear Probing für L1-Cache Effizienz
+            for (int i = 0; i < 32; i++)
             {
                 ref readonly var entry = ref entries[(slot + i) & mask];
 
@@ -188,16 +180,17 @@ namespace Godot
             return null;
         }
 
+
         public static void Register(IntPtr nativePtr, GodotObject obj)
         {
             if (nativePtr == IntPtr.Zero) return;
 
             lock (_state.WriteLock)
             {
-                // Load Factor 0.7 überschritten? -> Resize
-                if (_state.CurrentTable.Count >= _state.CurrentTable.Entries.Length * 0.7)
+                // Load Factor 0.5 ist das Limit für optimale Linear Probing Performance
+                if (_state.CurrentTable.Count >= _state.CurrentTable.Entries.Length * 0.5)
                 {
-                    Resize();
+                    Resize(_state.CurrentTable.Entries.Length * 2);
                 }
 
                 var table = _state.CurrentTable;
@@ -214,7 +207,6 @@ namespace Godot
                     slot = (slot + 1) & mask;
                 }
 
-                // Erst Value setzen, dann Key (Publishing-Barrier via Volatile)
                 table.Entries[slot].Value = obj;
                 Volatile.Write(ref table.Entries[slot].Key, nativePtr);
                 table.Count++;
@@ -258,10 +250,8 @@ namespace Godot
                 IntPtr k = table.Entries[j].Key;
                 if (k == IntPtr.Zero) break;
 
-                // Berechne idealen Slot für das verschobene Element
                 int r = (int)(((ulong)k.ToInt64() * 11400714819323198485uL) >> 32) & mask;
 
-                // Liegt r außerhalb der aktuellen Kette? Dann verschieben.
                 if ((i <= j) ? (i < r && r <= j) : (i < r || r <= j))
                     continue;
 
@@ -272,15 +262,14 @@ namespace Godot
             }
         }
 
-        private static void Resize()
+        private static void Resize(int newSize)
         {
-            int newSize = _state.CurrentTable.Entries.Length * 2;
             var newTable = new Table(newSize);
             var oldTable = _state.CurrentTable;
 
             foreach (var entry in oldTable.Entries)
             {
-                if (entry.Key != IntPtr.Zero)
+                if (entry.Key != IntPtr.Zero && entry.Value != null)
                 {
                     int slot = (int)(((ulong)entry.Key.ToInt64() * 11400714819323198485uL) >> 32) & newTable.Mask;
                     while (newTable.Entries[slot].Key != IntPtr.Zero)
@@ -292,7 +281,6 @@ namespace Godot
                 }
             }
 
-            // Atomarer Austausch macht die neue Tabelle für Get() sichtbar
             _state.CurrentTable = newTable;
         }
     }

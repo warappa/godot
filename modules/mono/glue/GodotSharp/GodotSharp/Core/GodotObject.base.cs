@@ -71,8 +71,6 @@ namespace Godot
             }
 
             _weakReferenceToSelf = DisposablesTracker.RegisterGodotObject(this);
-
-            InitializeRegistry();
         }
 
         internal GodotObject(bool memoryOwn)
@@ -119,8 +117,6 @@ namespace Godot
         /// </summary>
         protected virtual void Dispose(bool disposing)
         {
-            DisposeScriptIntegration(disposing);
-
             if (_disposed)
                 return;
 
