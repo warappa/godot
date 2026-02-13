@@ -51,7 +51,7 @@ namespace Godot.Bridge
             return godot_bool.True;
         }
 
-        private static unsafe (bool flowControl, godot_bool value) Invoke(godot_string_name* method, godot_variant** args, int argCount, godot_variant_call_error* refCallError, godot_variant* ret, GodotObject godotObject, out godot_variant retValue)
+        private static unsafe (bool flowControl, godot_bool value) Invoke(in godot_string_name* method, in godot_variant** args, int argCount, godot_variant_call_error* refCallError, in godot_variant* ret, in GodotObject godotObject, out godot_variant retValue)
         {
             bool invoked = false;
             retValue = default;

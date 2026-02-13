@@ -68,6 +68,7 @@ namespace Godot.Bridge
 
         public bool ContainsMethod(in godot_string_name name) => _knownMethodNames.Contains(name._data);
 
+        [MethodImpl(MethodImplOptions.AggressiveInlining)]
         public bool TryGetMethod(in godot_string_name name, int argumentCount, out ScriptMethodPtr method)
         {
             //var key = new MethodKey(name._data, argumentCount);
@@ -76,6 +77,7 @@ namespace Godot.Bridge
             return MethodCache<T>.TryGet(name._data, argumentCount, out method);
         }
 
+        [MethodImpl(MethodImplOptions.AggressiveInlining)]
         public ref readonly ScriptMethodPtr TryGetMethodFast(in godot_string_name name, int argumentCount)
         {
             return ref MethodCache<T>.TryGetFast(name._data, argumentCount);

@@ -155,7 +155,7 @@ namespace Godot
         /// Keine Locks, keine GCHandles, kein Overhead.
         /// </summary>
         [MethodImpl(MethodImplOptions.AggressiveInlining | MethodImplOptions.AggressiveOptimization)]
-        public static GodotObject? Get(IntPtr nativePtr)
+        public static GodotObject? Get(in IntPtr nativePtr)
         {
             if (nativePtr == IntPtr.Zero) return null;
 

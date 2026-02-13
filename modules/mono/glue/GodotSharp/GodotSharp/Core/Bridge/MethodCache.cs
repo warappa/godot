@@ -61,7 +61,7 @@ namespace Godot.Bridge
         }
 
         [MethodImpl(MethodImplOptions.AggressiveInlining | MethodImplOptions.AggressiveOptimization)]
-        public static ref readonly ScriptMethodPtr TryGetFast(IntPtr namePtr, int argCount)
+        public static ref readonly ScriptMethodPtr TryGetFast(in IntPtr namePtr, int argCount)
         {
             int slot = (int)((long)namePtr >> 3) & _mask;
 
