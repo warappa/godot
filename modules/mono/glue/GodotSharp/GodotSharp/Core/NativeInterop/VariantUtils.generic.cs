@@ -1,5 +1,4 @@
 using System;
-using System.Diagnostics.CodeAnalysis;
 using System.Runtime.CompilerServices;
 
 namespace Godot.NativeInterop;
@@ -10,30 +9,17 @@ public partial class VariantUtils
 {
     private static InvalidOperationException UnsupportedType<T>() => new InvalidOperationException(
         $"The type is not supported for conversion to/from Variant: '{typeof(T).FullName}'");
-    private delegate T ConvertToDelegate<[MustBeVariant] T>(in godot_variant variant);
-    private delegate godot_variant CreateFromDelegate<[MustBeVariant] T>(scoped in T from);
 
     internal static class GenericConversion<T>
     {
         internal delegate godot_variant ToVariantConverter(scoped in T from);
-        internal delegate T FromVariantConverter(in godot_variant from);
+        internal delegate T FromVariantConverter(scoped in godot_variant from);
 
-        [MethodImpl(MethodImplOptions.AggressiveInlining)]
         public static unsafe godot_variant ToVariant(scoped in T from) =>
-             ToVariantCb != null ? ToVariantCb(from) : ThrowUnsupportedType();
+             ToVariantCb != null ? ToVariantCb(from) : throw UnsupportedType<T>();
 
-        [MethodImpl(MethodImplOptions.AggressiveInlining)]
-        public static unsafe T FromVariant(in godot_variant variant)
-        {
-            if (FromVariantCb != null)
-            {
-                return FromVariantCb(variant);
-            }
-
-            ThrowUnsupportedType();
-
-            return default;
-        }
+        public static unsafe T FromVariant(scoped in godot_variant variant) =>
+            FromVariantCb != null ? FromVariantCb(variant) : throw UnsupportedType<T>();
 
         internal static ToVariantConverter? ToVariantCb;
 
@@ -43,205 +29,172 @@ public partial class VariantUtils
         {
             RuntimeHelpers.RunClassConstructor(typeof(T).TypeHandle);
         }
-
-        [DoesNotReturn]
-        private static unsafe godot_variant ThrowUnsupportedType()
-        {
-            throw UnsupportedType<T>();
-        }
     }
 
-    [MethodImpl(MethodImplOptions.AggressiveInlining | MethodImplOptions.AggressiveOptimization)]
-    public static godot_variant CreateFrom<[MustBeVariant] T>(scoped in T from) => CreateFromLookup<T>.CreateFrom(from);
-
-    [MethodImpl(MethodImplOptions.AggressiveInlining | MethodImplOptions.AggressiveOptimization)]
-    public static T ConvertTo<[MustBeVariant] T>(in godot_variant variant) => ConvertToLookup<T>.ConvertTo(variant);
-
-    // We use a generic static class to lookup the conversion method once during its initialization.
-    // The .NET runtime does the heavy lifting of creating an instance per type which makes this implementation
-    // behave similar to C++ templates: a specific implementation for each type without any overhead at runtime.
-    private static class ConvertToLookup<[MustBeVariant] T>
-    {
-        private static readonly ConvertToDelegate<T> _converter = DetermineConvertToDelegate<T>();
-
-        [MethodImpl(MethodImplOptions.AggressiveInlining | MethodImplOptions.AggressiveOptimization)]
-        public static T ConvertTo(in godot_variant variant) => _converter(variant);
-    }
-
-    // We use a generic static class to lookup the conversion method once during its initialization.
-    // The .NET runtime does the heavy lifting of creating an instance per type which makes this implementation
-    // behave similar to C++ templates: a specific implementation for each type without any overhead at runtime.
-    private static class CreateFromLookup<[MustBeVariant] T>
-    {
-        private static readonly CreateFromDelegate<T> _converter = DetermineCreateFromDelegate<T>();
-
-        [MethodImpl(MethodImplOptions.AggressiveInlining | MethodImplOptions.AggressiveOptimization)]
-        public static godot_variant CreateFrom(scoped in T from) => _converter(from);
-    }
-
-    private static CreateFromDelegate<T> DetermineCreateFromDelegate<T>()
+    [MethodImpl(MethodImplOptions.AggressiveInlining)]
+    public static godot_variant CreateFrom<[MustBeVariant] T>(scoped in T from)
     {
         [MethodImpl(MethodImplOptions.AggressiveInlining)]
-        static TTo UnsafeAs<TTo>(scoped in T f) => Unsafe.As<T, TTo>(ref Unsafe.AsRef(in f));
+        static TTo UnsafeAs<TTo>(scoped in T f) => Unsafe.As<T, TTo>(ref Unsafe.AsRef<T>(f));
 
         // `typeof(T) == typeof(X)` is optimized away. We cannot cache `typeof(T)` in a local variable, as it's not optimized when done like that.
 
         if (typeof(T) == typeof(bool))
-            return (scoped in T from) => CreateFromBool(UnsafeAs<bool>(from));
+            return CreateFromBool(UnsafeAs<bool>(from));
 
         if (typeof(T) == typeof(char))
-            return (scoped in T from) => CreateFromInt(UnsafeAs<char>(from));
+            return CreateFromInt(UnsafeAs<char>(from));
 
         if (typeof(T) == typeof(sbyte))
-            return (scoped in T from) => CreateFromInt(UnsafeAs<sbyte>(from));
+            return CreateFromInt(UnsafeAs<sbyte>(from));
 
         if (typeof(T) == typeof(short))
-            return (scoped in T from) => CreateFromInt(UnsafeAs<short>(from));
+            return CreateFromInt(UnsafeAs<short>(from));
 
         if (typeof(T) == typeof(int))
-            return (scoped in T from) => CreateFromInt(UnsafeAs<int>(from));
+            return CreateFromInt(UnsafeAs<int>(from));
 
         if (typeof(T) == typeof(long))
-            return (scoped in T from) => CreateFromInt(UnsafeAs<long>(from));
+            return CreateFromInt(UnsafeAs<long>(from));
 
         if (typeof(T) == typeof(byte))
-            return (scoped in T from) => CreateFromInt(UnsafeAs<byte>(from));
+            return CreateFromInt(UnsafeAs<byte>(from));
 
         if (typeof(T) == typeof(ushort))
-            return (scoped in T from) => CreateFromInt(UnsafeAs<ushort>(from));
+            return CreateFromInt(UnsafeAs<ushort>(from));
 
         if (typeof(T) == typeof(uint))
-            return (scoped in T from) => CreateFromInt(UnsafeAs<uint>(from));
+            return CreateFromInt(UnsafeAs<uint>(from));
 
         if (typeof(T) == typeof(ulong))
-            return (scoped in T from) => CreateFromInt(UnsafeAs<ulong>(from));
+            return CreateFromInt(UnsafeAs<ulong>(from));
 
         if (typeof(T) == typeof(float))
-            return (scoped in T from) => CreateFromFloat(UnsafeAs<float>(from));
+            return CreateFromFloat(UnsafeAs<float>(from));
 
         if (typeof(T) == typeof(double))
-            return (scoped in T from) => CreateFromFloat(UnsafeAs<double>(from));
+            return CreateFromFloat(UnsafeAs<double>(from));
 
         if (typeof(T) == typeof(Vector2))
-            return (scoped in T from) => CreateFromVector2(UnsafeAs<Vector2>(from));
+            return CreateFromVector2(UnsafeAs<Vector2>(from));
 
         if (typeof(T) == typeof(Vector2I))
-            return (scoped in T from) => CreateFromVector2I(UnsafeAs<Vector2I>(from));
+            return CreateFromVector2I(UnsafeAs<Vector2I>(from));
 
         if (typeof(T) == typeof(Rect2))
-            return (scoped in T from) => CreateFromRect2(UnsafeAs<Rect2>(from));
+            return CreateFromRect2(UnsafeAs<Rect2>(from));
 
         if (typeof(T) == typeof(Rect2I))
-            return (scoped in T from) => CreateFromRect2I(UnsafeAs<Rect2I>(from));
+            return CreateFromRect2I(UnsafeAs<Rect2I>(from));
 
         if (typeof(T) == typeof(Transform2D))
-            return (scoped in T from) => CreateFromTransform2D(UnsafeAs<Transform2D>(from));
+            return CreateFromTransform2D(UnsafeAs<Transform2D>(from));
 
         if (typeof(T) == typeof(Projection))
-            return (scoped in T from) => CreateFromProjection(UnsafeAs<Projection>(from));
+            return CreateFromProjection(UnsafeAs<Projection>(from));
 
         if (typeof(T) == typeof(Vector3))
-            return (scoped in T from) => CreateFromVector3(UnsafeAs<Vector3>(from));
+            return CreateFromVector3(UnsafeAs<Vector3>(from));
 
         if (typeof(T) == typeof(Vector3I))
-            return (scoped in T from) => CreateFromVector3I(UnsafeAs<Vector3I>(from));
+            return CreateFromVector3I(UnsafeAs<Vector3I>(from));
 
         if (typeof(T) == typeof(Basis))
-            return (scoped in T from) => CreateFromBasis(UnsafeAs<Basis>(from));
+            return CreateFromBasis(UnsafeAs<Basis>(from));
 
         if (typeof(T) == typeof(Quaternion))
-            return (scoped in T from) => CreateFromQuaternion(UnsafeAs<Quaternion>(from));
+            return CreateFromQuaternion(UnsafeAs<Quaternion>(from));
 
         if (typeof(T) == typeof(Transform3D))
-            return (scoped in T from) => CreateFromTransform3D(UnsafeAs<Transform3D>(from));
+            return CreateFromTransform3D(UnsafeAs<Transform3D>(from));
 
         if (typeof(T) == typeof(Vector4))
-            return (scoped in T from) => CreateFromVector4(UnsafeAs<Vector4>(from));
+            return CreateFromVector4(UnsafeAs<Vector4>(from));
 
         if (typeof(T) == typeof(Vector4I))
-            return (scoped in T from) => CreateFromVector4I(UnsafeAs<Vector4I>(from));
+            return CreateFromVector4I(UnsafeAs<Vector4I>(from));
 
         if (typeof(T) == typeof(Aabb))
-            return (scoped in T from) => CreateFromAabb(UnsafeAs<Aabb>(from));
+            return CreateFromAabb(UnsafeAs<Aabb>(from));
 
         if (typeof(T) == typeof(Color))
-            return (scoped in T from) => CreateFromColor(UnsafeAs<Color>(from));
+            return CreateFromColor(UnsafeAs<Color>(from));
 
         if (typeof(T) == typeof(Plane))
-            return (scoped in T from) => CreateFromPlane(UnsafeAs<Plane>(from));
+            return CreateFromPlane(UnsafeAs<Plane>(from));
 
         if (typeof(T) == typeof(Callable))
-            return (scoped in T from) => CreateFromCallable(UnsafeAs<Callable>(from));
+            return CreateFromCallable(UnsafeAs<Callable>(from));
 
         if (typeof(T) == typeof(Signal))
-            return (scoped in T from) => CreateFromSignal(UnsafeAs<Signal>(from));
+            return CreateFromSignal(UnsafeAs<Signal>(from));
 
         if (typeof(T) == typeof(string))
-            return (scoped in T from) => CreateFromString(UnsafeAs<string>(from));
+            return CreateFromString(UnsafeAs<string>(from));
 
         if (typeof(T) == typeof(byte[]))
-            return (scoped in T from) => CreateFromPackedByteArray(UnsafeAs<byte[]>(from));
+            return CreateFromPackedByteArray(UnsafeAs<byte[]>(from));
 
         if (typeof(T) == typeof(int[]))
-            return (scoped in T from) => CreateFromPackedInt32Array(UnsafeAs<int[]>(from));
+            return CreateFromPackedInt32Array(UnsafeAs<int[]>(from));
 
         if (typeof(T) == typeof(long[]))
-            return (scoped in T from) => CreateFromPackedInt64Array(UnsafeAs<long[]>(from));
+            return CreateFromPackedInt64Array(UnsafeAs<long[]>(from));
 
         if (typeof(T) == typeof(float[]))
-            return (scoped in T from) => CreateFromPackedFloat32Array(UnsafeAs<float[]>(from));
+            return CreateFromPackedFloat32Array(UnsafeAs<float[]>(from));
 
         if (typeof(T) == typeof(double[]))
-            return (scoped in T from) => CreateFromPackedFloat64Array(UnsafeAs<double[]>(from));
+            return CreateFromPackedFloat64Array(UnsafeAs<double[]>(from));
 
         if (typeof(T) == typeof(string[]))
-            return (scoped in T from) => CreateFromPackedStringArray(UnsafeAs<string[]>(from));
+            return CreateFromPackedStringArray(UnsafeAs<string[]>(from));
 
         if (typeof(T) == typeof(Vector2[]))
-            return (scoped in T from) => CreateFromPackedVector2Array(UnsafeAs<Vector2[]>(from));
+            return CreateFromPackedVector2Array(UnsafeAs<Vector2[]>(from));
 
         if (typeof(T) == typeof(Vector3[]))
-            return (scoped in T from) => CreateFromPackedVector3Array(UnsafeAs<Vector3[]>(from));
+            return CreateFromPackedVector3Array(UnsafeAs<Vector3[]>(from));
 
         if (typeof(T) == typeof(Vector4[]))
-            return (scoped in T from) => CreateFromPackedVector4Array(UnsafeAs<Vector4[]>(from));
+            return CreateFromPackedVector4Array(UnsafeAs<Vector4[]>(from));
 
         if (typeof(T) == typeof(Color[]))
-            return (scoped in T from) => CreateFromPackedColorArray(UnsafeAs<Color[]>(from));
+            return CreateFromPackedColorArray(UnsafeAs<Color[]>(from));
 
         if (typeof(T) == typeof(StringName[]))
-            return (scoped in T from) => CreateFromSystemArrayOfStringName(UnsafeAs<StringName[]>(from));
+            return CreateFromSystemArrayOfStringName(UnsafeAs<StringName[]>(from));
 
         if (typeof(T) == typeof(NodePath[]))
-            return (scoped in T from) => CreateFromSystemArrayOfNodePath(UnsafeAs<NodePath[]>(from));
+            return CreateFromSystemArrayOfNodePath(UnsafeAs<NodePath[]>(from));
 
         if (typeof(T) == typeof(Rid[]))
-            return (scoped in T from) => CreateFromSystemArrayOfRid(UnsafeAs<Rid[]>(from));
+            return CreateFromSystemArrayOfRid(UnsafeAs<Rid[]>(from));
 
         if (typeof(T) == typeof(StringName))
-            return (scoped in T from) => CreateFromStringName(UnsafeAs<StringName>(from));
+            return CreateFromStringName(UnsafeAs<StringName>(from));
 
         if (typeof(T) == typeof(NodePath))
-            return (scoped in T from) => CreateFromNodePath(UnsafeAs<NodePath>(from));
+            return CreateFromNodePath(UnsafeAs<NodePath>(from));
 
         if (typeof(T) == typeof(Rid))
-            return (scoped in T from) => CreateFromRid(UnsafeAs<Rid>(from));
+            return CreateFromRid(UnsafeAs<Rid>(from));
 
         if (typeof(T) == typeof(Godot.Collections.Dictionary))
-            return (scoped in T from) => CreateFromDictionary(UnsafeAs<Godot.Collections.Dictionary>(from));
+            return CreateFromDictionary(UnsafeAs<Godot.Collections.Dictionary>(from));
 
         if (typeof(T) == typeof(Godot.Collections.Array))
-            return (scoped in T from) => CreateFromArray(UnsafeAs<Godot.Collections.Array>(from));
+            return CreateFromArray(UnsafeAs<Godot.Collections.Array>(from));
 
         if (typeof(T) == typeof(Variant))
-            return (scoped in T from) => NativeFuncs.godotsharp_variant_new_copy((godot_variant)UnsafeAs<Variant>(from).NativeVar);
+            return NativeFuncs.godotsharp_variant_new_copy((godot_variant)UnsafeAs<Variant>(from).NativeVar);
 
         // More complex checks here at the end, to avoid screwing the simple ones in case they're not optimized away.
 
         // `typeof(X).IsAssignableFrom(typeof(T))` is optimized away
 
         if (typeof(GodotObject).IsAssignableFrom(typeof(T)))
-            return (scoped in T from) => CreateFromGodotObject(UnsafeAs<GodotObject>(from));
+            return CreateFromGodotObject(UnsafeAs<GodotObject>(from));
 
         // `typeof(T).IsEnum` is optimized away
 
@@ -252,197 +205,197 @@ public partial class VariantUtils
             var enumType = typeof(T).GetEnumUnderlyingType();
 
             if (enumType == typeof(sbyte))
-                return (scoped in T from) => CreateFromInt(UnsafeAs<sbyte>(from));
+                return CreateFromInt(UnsafeAs<sbyte>(from));
 
             if (enumType == typeof(short))
-                return (scoped in T from) => CreateFromInt(UnsafeAs<short>(from));
+                return CreateFromInt(UnsafeAs<short>(from));
 
             if (enumType == typeof(int))
-                return (scoped in T from) => CreateFromInt(UnsafeAs<int>(from));
+                return CreateFromInt(UnsafeAs<int>(from));
 
             if (enumType == typeof(long))
-                return (scoped in T from) => CreateFromInt(UnsafeAs<long>(from));
+                return CreateFromInt(UnsafeAs<long>(from));
 
             if (enumType == typeof(byte))
-                return (scoped in T from) => CreateFromInt(UnsafeAs<byte>(from));
+                return CreateFromInt(UnsafeAs<byte>(from));
 
             if (enumType == typeof(ushort))
-                return (scoped in T from) => CreateFromInt(UnsafeAs<ushort>(from));
+                return CreateFromInt(UnsafeAs<ushort>(from));
 
             if (enumType == typeof(uint))
-                return (scoped in T from) => CreateFromInt(UnsafeAs<uint>(from));
+                return CreateFromInt(UnsafeAs<uint>(from));
 
             if (enumType == typeof(ulong))
-                return (scoped in T from) => CreateFromInt(UnsafeAs<ulong>(from));
+                return CreateFromInt(UnsafeAs<ulong>(from));
 
-            ThrowUnsupportedType<T>();
+            throw UnsupportedType<T>();
         }
 
-        return (scoped in T from) => GenericConversion<T>.ToVariant(from);
+        return GenericConversion<T>.ToVariant(from);
     }
 
     [MethodImpl(MethodImplOptions.AggressiveInlining | MethodImplOptions.AggressiveOptimization)]
-    private static ConvertToDelegate<T> DetermineConvertToDelegate<T>()
+    public static T ConvertTo<[MustBeVariant] T>(scoped in godot_variant variant)
     {
         [MethodImpl(MethodImplOptions.AggressiveInlining)]
-        static T UnsafeAsT<TFrom>(TFrom f) => Unsafe.As<TFrom, T>(ref Unsafe.AsRef(in f));
+        static T UnsafeAsT<TFrom>(scoped in TFrom f) => Unsafe.As<TFrom, T>(ref Unsafe.AsRef(in f));
 
         if (typeof(T) == typeof(bool))
-            return (in godot_variant variant) => UnsafeAsT(ConvertToBool(variant));
+            return UnsafeAsT(ConvertToBool(variant));
 
         if (typeof(T) == typeof(char))
-            return (in godot_variant variant) => UnsafeAsT(ConvertToChar(variant));
+            return UnsafeAsT(ConvertToChar(variant));
 
         if (typeof(T) == typeof(sbyte))
-            return (in godot_variant variant) => UnsafeAsT(ConvertToInt8(variant));
+            return UnsafeAsT(ConvertToInt8(variant));
 
         if (typeof(T) == typeof(short))
-            return (in godot_variant variant) => UnsafeAsT(ConvertToInt16(variant));
+            return UnsafeAsT(ConvertToInt16(variant));
 
         if (typeof(T) == typeof(int))
-            return (in godot_variant variant) => UnsafeAsT(ConvertToInt32(variant));
+            return UnsafeAsT(ConvertToInt32(variant));
 
         if (typeof(T) == typeof(long))
-            return (in godot_variant variant) => UnsafeAsT(ConvertToInt64(variant));
+            return UnsafeAsT(ConvertToInt64(variant));
 
         if (typeof(T) == typeof(byte))
-            return (in godot_variant variant) => UnsafeAsT(ConvertToUInt8(variant));
+            return UnsafeAsT(ConvertToUInt8(variant));
 
         if (typeof(T) == typeof(ushort))
-            return (in godot_variant variant) => UnsafeAsT(ConvertToUInt16(variant));
+            return UnsafeAsT(ConvertToUInt16(variant));
 
         if (typeof(T) == typeof(uint))
-            return (in godot_variant variant) => UnsafeAsT(ConvertToUInt32(variant));
+            return UnsafeAsT(ConvertToUInt32(variant));
 
         if (typeof(T) == typeof(ulong))
-            return (in godot_variant variant) => UnsafeAsT(ConvertToUInt64(variant));
+            return UnsafeAsT(ConvertToUInt64(variant));
 
         if (typeof(T) == typeof(float))
-            return (in godot_variant variant) => UnsafeAsT(ConvertToFloat32(variant));
+            return UnsafeAsT(ConvertToFloat32(variant));
 
         if (typeof(T) == typeof(double))
-            return (in godot_variant variant) => UnsafeAsT(ConvertToFloat64(variant));
+            return UnsafeAsT(ConvertToFloat64(variant));
 
         if (typeof(T) == typeof(Vector2))
-            return (in godot_variant variant) => UnsafeAsT(ConvertToVector2(variant));
+            return UnsafeAsT(ConvertToVector2(variant));
 
         if (typeof(T) == typeof(Vector2I))
-            return (in godot_variant variant) => UnsafeAsT(ConvertToVector2I(variant));
+            return UnsafeAsT(ConvertToVector2I(variant));
 
         if (typeof(T) == typeof(Rect2))
-            return (in godot_variant variant) => UnsafeAsT(ConvertToRect2(variant));
+            return UnsafeAsT(ConvertToRect2(variant));
 
         if (typeof(T) == typeof(Rect2I))
-            return (in godot_variant variant) => UnsafeAsT(ConvertToRect2I(variant));
+            return UnsafeAsT(ConvertToRect2I(variant));
 
         if (typeof(T) == typeof(Transform2D))
-            return (in godot_variant variant) => UnsafeAsT(ConvertToTransform2D(variant));
+            return UnsafeAsT(ConvertToTransform2D(variant));
 
         if (typeof(T) == typeof(Vector3))
-            return (in godot_variant variant) => UnsafeAsT(ConvertToVector3(variant));
+            return UnsafeAsT(ConvertToVector3(variant));
 
         if (typeof(T) == typeof(Vector3I))
-            return (in godot_variant variant) => UnsafeAsT(ConvertToVector3I(variant));
+            return UnsafeAsT(ConvertToVector3I(variant));
 
         if (typeof(T) == typeof(Basis))
-            return (in godot_variant variant) => UnsafeAsT(ConvertToBasis(variant));
+            return UnsafeAsT(ConvertToBasis(variant));
 
         if (typeof(T) == typeof(Quaternion))
-            return (in godot_variant variant) => UnsafeAsT(ConvertToQuaternion(variant));
+            return UnsafeAsT(ConvertToQuaternion(variant));
 
         if (typeof(T) == typeof(Transform3D))
-            return (in godot_variant variant) => UnsafeAsT(ConvertToTransform3D(variant));
+            return UnsafeAsT(ConvertToTransform3D(variant));
 
         if (typeof(T) == typeof(Projection))
-            return (in godot_variant variant) => UnsafeAsT(ConvertToProjection(variant));
+            return UnsafeAsT(ConvertToProjection(variant));
 
         if (typeof(T) == typeof(Vector4))
-            return (in godot_variant variant) => UnsafeAsT(ConvertToVector4(variant));
+            return UnsafeAsT(ConvertToVector4(variant));
 
         if (typeof(T) == typeof(Vector4I))
-            return (in godot_variant variant) => UnsafeAsT(ConvertToVector4I(variant));
+            return UnsafeAsT(ConvertToVector4I(variant));
 
         if (typeof(T) == typeof(Aabb))
-            return (in godot_variant variant) => UnsafeAsT(ConvertToAabb(variant));
+            return UnsafeAsT(ConvertToAabb(variant));
 
         if (typeof(T) == typeof(Color))
-            return (in godot_variant variant) => UnsafeAsT(ConvertToColor(variant));
+            return UnsafeAsT(ConvertToColor(variant));
 
         if (typeof(T) == typeof(Plane))
-            return (in godot_variant variant) => UnsafeAsT(ConvertToPlane(variant));
+            return UnsafeAsT(ConvertToPlane(variant));
 
         if (typeof(T) == typeof(Callable))
-            return (in godot_variant variant) => UnsafeAsT(ConvertToCallable(variant));
+            return UnsafeAsT(ConvertToCallable(variant));
 
         if (typeof(T) == typeof(Signal))
-            return (in godot_variant variant) => UnsafeAsT(ConvertToSignal(variant));
+            return UnsafeAsT(ConvertToSignal(variant));
 
         if (typeof(T) == typeof(string))
-            return (in godot_variant variant) => UnsafeAsT(ConvertToString(variant));
+            return UnsafeAsT(ConvertToString(variant));
 
         if (typeof(T) == typeof(byte[]))
-            return (in godot_variant variant) => UnsafeAsT(ConvertAsPackedByteArrayToSystemArray(variant));
+            return UnsafeAsT(ConvertAsPackedByteArrayToSystemArray(variant));
 
         if (typeof(T) == typeof(int[]))
-            return (in godot_variant variant) => UnsafeAsT(ConvertAsPackedInt32ArrayToSystemArray(variant));
+            return UnsafeAsT(ConvertAsPackedInt32ArrayToSystemArray(variant));
 
         if (typeof(T) == typeof(long[]))
-            return (in godot_variant variant) => UnsafeAsT(ConvertAsPackedInt64ArrayToSystemArray(variant));
+            return UnsafeAsT(ConvertAsPackedInt64ArrayToSystemArray(variant));
 
         if (typeof(T) == typeof(float[]))
-            return (in godot_variant variant) => UnsafeAsT(ConvertAsPackedFloat32ArrayToSystemArray(variant));
+            return UnsafeAsT(ConvertAsPackedFloat32ArrayToSystemArray(variant));
 
         if (typeof(T) == typeof(double[]))
-            return (in godot_variant variant) => UnsafeAsT(ConvertAsPackedFloat64ArrayToSystemArray(variant));
+            return UnsafeAsT(ConvertAsPackedFloat64ArrayToSystemArray(variant));
 
         if (typeof(T) == typeof(string[]))
-            return (in godot_variant variant) => UnsafeAsT(ConvertAsPackedStringArrayToSystemArray(variant));
+            return UnsafeAsT(ConvertAsPackedStringArrayToSystemArray(variant));
 
         if (typeof(T) == typeof(Vector2[]))
-            return (in godot_variant variant) => UnsafeAsT(ConvertAsPackedVector2ArrayToSystemArray(variant));
+            return UnsafeAsT(ConvertAsPackedVector2ArrayToSystemArray(variant));
 
         if (typeof(T) == typeof(Vector3[]))
-            return (in godot_variant variant) => UnsafeAsT(ConvertAsPackedVector3ArrayToSystemArray(variant));
+            return UnsafeAsT(ConvertAsPackedVector3ArrayToSystemArray(variant));
 
         if (typeof(T) == typeof(Vector4[]))
-            return (in godot_variant variant) => UnsafeAsT(ConvertAsPackedVector4ArrayToSystemArray(variant));
+            return UnsafeAsT(ConvertAsPackedVector4ArrayToSystemArray(variant));
 
         if (typeof(T) == typeof(Color[]))
-            return (in godot_variant variant) => UnsafeAsT(ConvertAsPackedColorArrayToSystemArray(variant));
+            return UnsafeAsT(ConvertAsPackedColorArrayToSystemArray(variant));
 
         if (typeof(T) == typeof(StringName[]))
-            return (in godot_variant variant) => UnsafeAsT(ConvertToSystemArrayOfStringName(variant));
+            return UnsafeAsT(ConvertToSystemArrayOfStringName(variant));
 
         if (typeof(T) == typeof(NodePath[]))
-            return (in godot_variant variant) => UnsafeAsT(ConvertToSystemArrayOfNodePath(variant));
+            return UnsafeAsT(ConvertToSystemArrayOfNodePath(variant));
 
         if (typeof(T) == typeof(Rid[]))
-            return (in godot_variant variant) => UnsafeAsT(ConvertToSystemArrayOfRid(variant));
+            return UnsafeAsT(ConvertToSystemArrayOfRid(variant));
 
         if (typeof(T) == typeof(StringName))
-            return (in godot_variant variant) => UnsafeAsT(ConvertToStringName(variant));
+            return UnsafeAsT(ConvertToStringName(variant));
 
         if (typeof(T) == typeof(NodePath))
-            return (in godot_variant variant) => UnsafeAsT(ConvertToNodePath(variant));
+            return UnsafeAsT(ConvertToNodePath(variant));
 
         if (typeof(T) == typeof(Rid))
-            return (in godot_variant variant) => UnsafeAsT(ConvertToRid(variant));
+            return UnsafeAsT(ConvertToRid(variant));
 
         if (typeof(T) == typeof(Godot.Collections.Dictionary))
-            return (in godot_variant variant) => UnsafeAsT(ConvertToDictionary(variant));
+            return UnsafeAsT(ConvertToDictionary(variant));
 
         if (typeof(T) == typeof(Godot.Collections.Array))
-            return (in godot_variant variant) => UnsafeAsT(ConvertToArray(variant));
+            return UnsafeAsT(ConvertToArray(variant));
 
         if (typeof(T) == typeof(Variant))
-            return (in godot_variant variant) => UnsafeAsT(Variant.CreateCopyingBorrowed(variant));
+            return UnsafeAsT(Variant.CreateCopyingBorrowed(variant));
 
         // More complex checks here at the end, to avoid screwing the simple ones in case they're not optimized away.
 
         // `typeof(X).IsAssignableFrom(typeof(T))` is optimized away
 
         if (typeof(GodotObject).IsAssignableFrom(typeof(T)))
-            return (in godot_variant variant) => (T)(object)ConvertToGodotObject(variant);
+            return (T)(object)ConvertToGodotObject(variant);
 
         // `typeof(T).IsEnum` is optimized away
 
@@ -453,38 +406,32 @@ public partial class VariantUtils
             var enumType = typeof(T).GetEnumUnderlyingType();
 
             if (enumType == typeof(sbyte))
-                return (in godot_variant variant) => UnsafeAsT(ConvertToInt8(variant));
+                return UnsafeAsT(ConvertToInt8(variant));
 
             if (enumType == typeof(short))
-                return (in godot_variant variant) => UnsafeAsT(ConvertToInt16(variant));
+                return UnsafeAsT(ConvertToInt16(variant));
 
             if (enumType == typeof(int))
-                return (in godot_variant variant) => UnsafeAsT(ConvertToInt32(variant));
+                return UnsafeAsT(ConvertToInt32(variant));
 
             if (enumType == typeof(long))
-                return (in godot_variant variant) => UnsafeAsT(ConvertToInt64(variant));
+                return UnsafeAsT(ConvertToInt64(variant));
 
             if (enumType == typeof(byte))
-                return (in godot_variant variant) => UnsafeAsT(ConvertToUInt8(variant));
+                return UnsafeAsT(ConvertToUInt8(variant));
 
             if (enumType == typeof(ushort))
-                return (in godot_variant variant) => UnsafeAsT(ConvertToUInt16(variant));
+                return UnsafeAsT(ConvertToUInt16(variant));
 
             if (enumType == typeof(uint))
-                return (in godot_variant variant) => UnsafeAsT(ConvertToUInt32(variant));
+                return UnsafeAsT(ConvertToUInt32(variant));
 
             if (enumType == typeof(ulong))
-                return (in godot_variant variant) => UnsafeAsT(ConvertToUInt64(variant));
+                return UnsafeAsT(ConvertToUInt64(variant));
 
-            ThrowUnsupportedType<T>();
+            throw UnsupportedType<T>();
         }
 
-        return (in godot_variant variant) => GenericConversion<T>.FromVariant(variant);
-    }
-
-    [DoesNotReturn]
-    private static unsafe godot_variant ThrowUnsupportedType<T>()
-    {
-        throw UnsupportedType<T>();
+        return GenericConversion<T>.FromVariant(variant);
     }
 }

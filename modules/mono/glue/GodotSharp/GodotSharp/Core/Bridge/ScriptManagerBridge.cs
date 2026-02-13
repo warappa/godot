@@ -1,5 +1,6 @@
 #nullable enable
 
+using Godot.NativeInterop;
 using System;
 using System.Collections.Concurrent;
 using System.Collections.Generic;
@@ -7,12 +8,12 @@ using System.Diagnostics;
 using System.Diagnostics.CodeAnalysis;
 using System.Linq;
 using System.Reflection;
+using System.Reflection.Metadata;
 using System.Runtime.CompilerServices;
 using System.Runtime.InteropServices;
 using System.Runtime.Loader;
 using System.Runtime.Serialization;
 using System.Text;
-using Godot.NativeInterop;
 
 namespace Godot.Bridge
 {
@@ -100,7 +101,13 @@ namespace Godot.Bridge
 
                 var instance = Constructors.Invoke(nativeTypeNameStr, godotObject);
 
-                return GCHandle.ToIntPtr(CustomGCHandle.AllocStrong(instance));
+                var gcHandle = GCHandle.ToIntPtr(CustomGCHandle.AllocStrong(instance));
+
+                Console.WriteLine($"CreateManagedForGodotObjectBinding: {godotObject} -> {gcHandle}");
+
+                GodotObjectRegistry.Register(gcHandle, instance);
+
+                return gcHandle;
             }
             catch (Exception e)
             {
@@ -159,6 +166,7 @@ namespace Godot.Bridge
 
                 _ = ctor.Invoke(obj, invokeParams);
 
+                Console.WriteLine($"CreateManagedForGodotObjectScriptInstance C++ Ptr {godotObject} -> {obj.NativeInstance}");
 
                 return godot_bool.True;
             }
@@ -287,7 +295,13 @@ namespace Godot.Bridge
             {
                 var target = (GodotObject?)GCHandle.FromIntPtr(gcHandlePtr).Target;
                 if (target != null)
+                {
+                    Console.WriteLine($"SetGodotObjectPtr {gcHandlePtr} -> {newPtr}");
+
+                    //GodotObjectRegistry.Unregister(gcHandlePtr);
                     target.NativePtr = newPtr;
+                    //GodotObjectRegistry.Register(target.NativeInstance, target);
+                }
             }
             catch (Exception e)
             {
@@ -1265,11 +1279,14 @@ namespace Godot.Bridge
         internal static unsafe godot_bool SwapGCHandleForType(IntPtr oldGCHandlePtr, IntPtr* outNewGCHandlePtr,
             godot_bool createWeak)
         {
+            Console.WriteLine($"SwapGCHandleForType C++ Ptr {oldGCHandlePtr} -> {outNewGCHandlePtr->ToInt64()}");
             try
             {
                 var oldGCHandle = GCHandle.FromIntPtr(oldGCHandlePtr);
 
                 object? target = oldGCHandle.Target;
+
+                GodotObjectRegistry.Unregister(oldGCHandlePtr);
 
                 if (target == null)
                 {
@@ -1285,6 +1302,12 @@ namespace Godot.Bridge
 
                 CustomGCHandle.Free(oldGCHandle);
                 *outNewGCHandlePtr = GCHandle.ToIntPtr(newGCHandle);
+
+                if (target is GodotObject godotObject)
+                {
+                    GodotObjectRegistry.Register(*outNewGCHandlePtr, godotObject);
+                }
+
                 return godot_bool.True;
             }
             catch (Exception e)

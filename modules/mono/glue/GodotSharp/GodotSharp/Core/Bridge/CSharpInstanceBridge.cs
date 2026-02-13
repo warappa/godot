@@ -17,8 +17,20 @@ namespace Godot.Bridge
             godot_variant_call_error* refCallError,
             godot_variant* ret)
         {
-            var handle = GCHandle.FromIntPtr(godotObjectGCHandle);
-            var godotObject = Unsafe.As<GodotObject>(handle.Target);
+            //var handle = GCHandle.FromIntPtr(godotObjectGCHandle);
+            //var godotObject = Unsafe.As<GodotObject>(handle.Target);
+            var godotObject = GodotObjectRegistry.Get(godotObjectGCHandle);
+            if (godotObject is null)
+            {
+                Console.WriteLine($"CSharpInstanceBridge.Call: Couldn't find by {godotObjectGCHandle}");
+                var handle = GCHandle.FromIntPtr(godotObjectGCHandle);
+                godotObject = Unsafe.As<GodotObject>(handle.Target);
+                if (godotObject is not null)
+                {
+                    Console.WriteLine($"CSharpInstanceBridge.Call: Register late {godotObjectGCHandle}");
+                    GodotObjectRegistry.Register(godotObjectGCHandle, godotObject);
+                }
+            }
 
             if (godotObject is null)
             {
@@ -28,21 +40,42 @@ namespace Godot.Bridge
                 return godot_bool.False;
             }
 
-            bool invoked;
             godot_variant retValue;
+            (bool flowControl, godot_bool value) = Invoke(method, args, argCount, refCallError, ret, godotObject, out retValue);
+            if (!flowControl)
+            {
+                return value;
+            }
 
+            *ret = retValue;
+            return godot_bool.True;
+        }
+
+        private static unsafe (bool flowControl, godot_bool value) Invoke(godot_string_name* method, godot_variant** args, int argCount, godot_variant_call_error* refCallError, godot_variant* ret, GodotObject godotObject, out godot_variant retValue)
+        {
+            bool invoked = false;
+            retValue = default;
             try
             {
-                invoked = godotObject.InvokeGodotClassMethod(
-                    ref *method,
-                    new NativeVariantPtrArgs(args, argCount),
-                    out retValue);
+                ref readonly var scriptMethodPtr = ref godotObject.TryGetGodotClassMethod(in *method, argCount);
+                if (!Unsafe.IsNullRef(in scriptMethodPtr))
+                {
+                    scoped var argsStruct = new NativeVariantPtrArgs(args, argCount);
+
+                    scriptMethodPtr.Ptr(godotObject, in argsStruct, out retValue);
+                    invoked = true;
+                }
+
+                //invoked = godotObject.InvokeGodotClassMethod(
+                //    ref *method,
+                //    new NativeVariantPtrArgs(args, argCount),a
+                //    out retValue);
             }
             catch (Exception e)
             {
                 ExceptionUtils.LogException(e);
                 *ret = default;
-                return godot_bool.False;
+                return (flowControl: false, value: godot_bool.False);
             }
 
             if (!invoked)
@@ -50,13 +83,11 @@ namespace Godot.Bridge
                 *ret = default;
                 ref var callError = ref *refCallError;
                 callError.Error = godot_variant_call_error_error.GODOT_CALL_ERROR_CALL_ERROR_INVALID_METHOD;
-                return godot_bool.False;
+                return (flowControl: false, value: godot_bool.False);
             }
 
-            *ret = retValue;
-            return godot_bool.True;
+            return (flowControl: true, value: default);
         }
-
 
         [UnmanagedCallersOnly]
         internal static unsafe godot_bool Set(IntPtr godotObjectGCHandle, godot_string_name* name, godot_variant* value)

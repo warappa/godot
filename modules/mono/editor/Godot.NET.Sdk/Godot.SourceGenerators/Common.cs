@@ -5,7 +5,7 @@ namespace Godot.SourceGenerators
 {
     public static partial class Common
     {
-        private static readonly string _helpLinkFormat = $"{VersionDocsUrl}/tutorials/scripting/c_sharp/diagnostics/{{0}}.html";
+        private static readonly string _helpLinkFormat = $"/tutorials/scripting/c_sharp/diagnostics/{{0}}.html";
 
         internal static readonly DiagnosticDescriptor ClassPartialModifierRule =
             new DiagnosticDescriptor(id: "GD0001",

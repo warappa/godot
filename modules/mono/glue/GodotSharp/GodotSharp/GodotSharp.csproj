@@ -10,6 +10,7 @@
     <DocumentationFile>$(OutputPath)/$(AssemblyName).xml</DocumentationFile>
     <EnableDefaultItems>false</EnableDefaultItems>
     <AllowUnsafeBlocks>true</AllowUnsafeBlocks>
+    <Optimize>true</Optimize>
 
     <AnalysisMode>Recommended</AnalysisMode>
   </PropertyGroup>
@@ -101,6 +102,7 @@
     <Compile Include="Core\GD.cs" />
     <Compile Include="Core\GodotObject.base.cs" />
     <Compile Include="Core\GodotObject.exceptions.cs" />
+    <Compile Include="Core\GodotObject.ScriptObjectRegistry.cs" />
     <Compile Include="Core\GodotSynchronizationContext.cs" />
     <Compile Include="Core\GodotTaskScheduler.cs" />
     <Compile Include="Core\GodotTraceListener.cs" />

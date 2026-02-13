@@ -232,23 +232,30 @@ namespace Godot.SourceGenerators
                 source.Append("    }");
 
 
-                source.Append("    /// <inheritdoc/>\n");
-                source.Append("    [global::System.ComponentModel.EditorBrowsable(global::System.ComponentModel.EditorBrowsableState.Never)]\n");
-                source.Append("    unsafe protected override bool InvokeGodotClassMethod(in godot_string_name method, ");
-                source.Append("NativeVariantPtrArgs args, out godot_variant ret)\n    {\n");
-                //source.Append("        if (MethodRegistry.TryGetMethod(in method, args.Count, out var scriptMethodPtr))\n");
+                //source.Append("    /// <inheritdoc/>\n");
+                //source.Append("    [global::System.ComponentModel.EditorBrowsable(global::System.ComponentModel.EditorBrowsableState.Never)]\n");
+                //source.Append("    unsafe protected override bool InvokeGodotClassMethod(in godot_string_name method, ");
+                //source.Append("NativeVariantPtrArgs args, out godot_variant ret)\n    {\n");
+                ////source.Append("        if (MethodRegistry.TryGetMethod(in method, args.Count, out var scriptMethodPtr))\n");
+                ////source.Append("        {\n");
+                ////source.Append($"            scriptMethodPtr.Ptr(this, args, out ret);\n");
+                ////source.Append("            return true;\n");
+                ////source.Append("        }\n\n");
+                //source.Append("        ref readonly var scriptMethodPtr = ref MethodRegistry.TryGetMethodFast(in method, args.Count);\n");
+                //source.Append("        if (!Unsafe.IsNullRef(in scriptMethodPtr))\n");
                 //source.Append("        {\n");
-                //source.Append($"            scriptMethodPtr.Ptr(this, args, out ret);\n");
+                //source.Append($"           scriptMethodPtr.Ptr(this, args, out ret);\n");
                 //source.Append("            return true;\n");
                 //source.Append("        }\n\n");
-                source.Append("        ref readonly var scriptMethodPtr = ref MethodRegistry.TryGetMethodFast(in method, args.Count);\n");
-                source.Append("        if (!Unsafe.IsNullRef(in scriptMethodPtr))\n");
-                source.Append("        {\n");
-                source.Append($"           scriptMethodPtr.Ptr(this, args, out ret);\n");
-                source.Append("            return true;\n");
-                source.Append("        }\n\n");
-                source.Append("        ret = new godot_variant();\n");
-                source.Append("        return false;\n");
+                //source.Append("        ret = new godot_variant();\n");
+                //source.Append("        return false;\n");
+                //source.Append("    }\n\n");
+
+                source.Append("    /// <inheritdoc/>\n");
+                source.Append("    [global::System.ComponentModel.EditorBrowsable(global::System.ComponentModel.EditorBrowsableState.Never)]\n");
+                source.Append("    public override ref readonly ScriptMethodPtr TryGetGodotClassMethod(in godot_string_name method, int argc)\n");
+                source.Append("    {\n");
+                source.Append("        return ref MethodRegistry.TryGetMethodFast(in method, argc);\n");
                 source.Append("    }\n\n");
             }
 
@@ -545,7 +552,7 @@ namespace Godot.SourceGenerators
                 $$"""
                         public static ScriptMethodPtr CreateScriptMethod_{{methodName}}{{method.ParamTypeSymbols.Length}}()
                         {   
-                            static void Impl({{type}} scriptInstance, NativeVariantPtrArgs args, out godot_variant ret)
+                            static void Impl({{type}} scriptInstance, in NativeVariantPtrArgs args, out godot_variant ret)
                             {
                 """);
                 

@@ -2540,7 +2540,7 @@ Error BindingsGenerator::_generate_cs_type(const TypeInterface &itype, const Str
 		
 			output << INDENT2 "public static ScriptMethodPtr CreateScriptMethod_" << imethod.proxy_name << itos(imethod.arguments.size()) << "()\n"
 				   << INDENT2 << "{\n"
-				   << INDENT3 << "static void Impl(" << itype.proxy_name << " scriptInstance, NativeVariantPtrArgs args, out godot_variant ret)\n"
+				   << INDENT3 << "static void Impl(" << itype.proxy_name << " scriptInstance, in NativeVariantPtrArgs args, out godot_variant ret)\n"
 				   << INDENT3 << "{\n"
 				;
 		
@@ -2615,28 +2615,37 @@ Error BindingsGenerator::_generate_cs_type(const TypeInterface &itype, const Str
 		// Avoid raising diagnostics because of calls to obsolete methods.
 		output << "#pragma warning disable CS0618 // Member is obsolete\n";
 
-		output << INDENT1 "protected internal unsafe " << (is_derived_type ? "override" : "virtual")
-			   << " bool " CS_METHOD_INVOKE_GODOT_CLASS_METHOD "(in godot_string_name method, "
-			   << "NativeVariantPtrArgs args, out godot_variant ret)\n"
-			   << INDENT1 "{\n";
+		//output << INDENT1 "protected internal unsafe " << (is_derived_type ? "override" : "virtual")
+		//	   << " bool " CS_METHOD_INVOKE_GODOT_CLASS_METHOD "(in godot_string_name method, "
+		//	   << "NativeVariantPtrArgs args, out godot_variant ret)\n"
+		//	   << INDENT1 "{\n";
 
-		//output << INDENT2 << "if (MethodRegistry.TryGetMethod(in method, args.Count, out var scriptMethodPtr))\n"
+		////output << INDENT2 << "if (MethodRegistry.TryGetMethod(in method, args.Count, out var scriptMethodPtr))\n"
+		////	   << INDENT2 << "{\n"
+		////	   << INDENT3 << "scriptMethodPtr.Ptr(this, args, out ret);\n"
+		////	   << INDENT3 << "return true;\n"
+		////	   << INDENT2 << "}\n\n";
+
+		//output << INDENT2 << "ref readonly var scriptMethodPtr = ref MethodRegistry.TryGetMethodFast(in method, args.Count);\n"
+		//	   << INDENT2 << "if (!Unsafe.IsNullRef(in scriptMethodPtr))\n"
 		//	   << INDENT2 << "{\n"
 		//	   << INDENT3 << "scriptMethodPtr.Ptr(this, args, out ret);\n"
 		//	   << INDENT3 << "return true;\n"
 		//	   << INDENT2 << "}\n\n";
 
-		output << INDENT2 << "ref readonly var scriptMethodPtr = ref MethodRegistry.TryGetMethodFast(in method, args.Count);\n"
-			   << INDENT2 << "if (!Unsafe.IsNullRef(in scriptMethodPtr))\n"
-			   << INDENT2 << "{\n"
-			   << INDENT3 << "scriptMethodPtr.Ptr(this, args, out ret);\n"
-			   << INDENT3 << "return true;\n"
-			   << INDENT2 << "}\n\n";
+		//output << INDENT2 "ret = new godot_variant();\n"
+		//	   << INDENT2 "return false;\n";
 
-		output << INDENT2 "ret = new godot_variant();\n"
-			   << INDENT2 "return false;\n";
+		//output << INDENT1 "}\n";
 
-		output << INDENT1 "}\n";
+		output.append("    /// <inheritdoc/>\n");
+		output.append("    [global::System.ComponentModel.EditorBrowsable(global::System.ComponentModel.EditorBrowsableState.Never)]\n");
+		output.append("    unsafe public ");
+		output.append(is_derived_type ? "override" : "virtual");
+		output.append(" ref readonly ScriptMethodPtr TryGetGodotClassMethod(in godot_string_name method, int argc)\n");
+		output.append("    {\n");
+		output.append("        return ref MethodRegistry.TryGetMethodFast(in method, argc);\n");
+		output.append("    }\n\n");
 
 		output << "#pragma warning restore CS0618\n";
 

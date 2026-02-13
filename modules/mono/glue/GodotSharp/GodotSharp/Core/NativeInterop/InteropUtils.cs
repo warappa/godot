@@ -74,6 +74,8 @@ namespace Godot.NativeInterop
                         GCHandle.ToIntPtr(gcHandle), unmanaged, &script, refCounted.ToGodotBool());
                 }
             }
+
+            GodotObjectRegistry.Register(GCHandle.ToIntPtr(gcHandle), managed);
         }
 
         public static void TieManagedToUnmanagedWithPreSetup(GodotObject managed, IntPtr unmanaged,
